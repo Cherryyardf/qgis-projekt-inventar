@@ -153,13 +153,18 @@ class InventoryTests(unittest.TestCase):
         self.write("a.qgs", '<?xml version="1.0"?><!-- Kommentar -->'
                    '<!DOCTYPE qgis [<!ENTITY item "geheim">]><qgis/>')
         self.write("b.qgs", '<!ENTITY item "geheim"><qgis/>')
-        self.write("c.qgs", '<!DOCTYPE qgis SYSTEM "file:///not-read"><qgis/>'.encode("utf-16"))
+        self.write("c.qgs", '<!DOCTYPE qgis SYSTEM "file:///not-read" '
+                   '[<!ENTITY item "geheim">]><qgis/>'.encode("utf-16"))
         self.write("d.qgs", '<!-- <!DOCTYPE qgis> --><qgis version="3.40"/>')
+        # Header that QGIS itself writes into every project file
+        self.write("e.qgs", "<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>\n"
+                   '<qgis version="3.10.11"/>')
+        self.write("f.qgs", '<!DOCTYPE qgis SYSTEM "file:///not-read"><qgis/>'.encode("utf-16"))
         code, output, errors = self.run_cli(self.root, "--format", "json")
         report = json.loads(output)
         self.assertEqual(code, 0)
         self.assertEqual(report["summary"]["projects_with_errors"], 3)
-        self.assertEqual([p["error"] for p in report["projects"]], ["DOCTYPE nicht erlaubt"] * 3 + [None])
+        self.assertEqual([p["error"] for p in report["projects"]], ["DTD-Deklarationen nicht erlaubt"] * 3 + [None] * 3)
         self.assertEqual(errors.count("Warnung:"), 3)
         self.assertNotIn("geheim", output + errors)
 

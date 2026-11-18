@@ -67,10 +67,20 @@ def _parse_xml(data: bytes) -> ET.Element:
     offset = 3 if header.startswith(b"\xef\xbb\xbf") else 0
     if header.startswith((b"\xff\xfe", b"\xfe\xff")):
         offset = 2
+    # QGIS writes <!DOCTYPE qgis PUBLIC '...' 'SYSTEM'> into every project.
+    # A plain DOCTYPE is harmless (expat does not load external DTDs); only
+    # internal subsets and entity declarations are rejected (entity expansion).
     while token := _PROLOG_TOKEN.match(header, offset):
         closing = _PROLOG_END.get(token[1])
         if closing is None:
-            raise ProjectError("DOCTYPE nicht erlaubt")
+            if b"ENTITY" in token[1].upper():
+                raise ProjectError("DTD-Deklarationen nicht erlaubt")
+            end = header.find(b">", token.end())
+            subset = header.find(b"[", token.end())
+            if end == -1 or (subset != -1 and subset < end):
+                raise ProjectError("DTD-Deklarationen nicht erlaubt")
+            offset = end + 1
+            continue
         end = header.find(closing, token.end())
         if end == -1:
             break
